@@ -1,5 +1,8 @@
--- 견적 요청 테이블 생성
-CREATE TABLE IF NOT EXISTS public.estimate_requests (
+-- 기존 테이블 삭제
+DROP TABLE IF EXISTS public.estimate_requests;
+
+-- 견적 요청 테이블 생성 (RLS 비활성화)
+CREATE TABLE public.estimate_requests (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     region TEXT NOT NULL,
     house_size INTEGER NOT NULL CHECK (house_size > 0 AND house_size <= 1000),
@@ -14,22 +17,9 @@ CREATE TABLE IF NOT EXISTS public.estimate_requests (
 );
 
 -- 인덱스 생성
-CREATE INDEX IF NOT EXISTS idx_estimate_requests_created_at ON public.estimate_requests(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_estimate_requests_status ON public.estimate_requests(status);
-CREATE INDEX IF NOT EXISTS idx_estimate_requests_region ON public.estimate_requests(region);
-
--- RLS (Row Level Security) 활성화
-ALTER TABLE public.estimate_requests ENABLE ROW LEVEL SECURITY;
-
--- 관리자만 모든 데이터에 접근 가능하도록 정책 설정
-CREATE POLICY "Enable read access for authenticated users" ON public.estimate_requests
-    FOR SELECT USING (auth.role() = 'authenticated');
-
-CREATE POLICY "Enable insert access for all users" ON public.estimate_requests
-    FOR INSERT WITH CHECK (true);
-
-CREATE POLICY "Enable update access for authenticated users" ON public.estimate_requests
-    FOR UPDATE USING (auth.role() = 'authenticated');
+CREATE INDEX idx_estimate_requests_created_at ON public.estimate_requests(created_at DESC);
+CREATE INDEX idx_estimate_requests_status ON public.estimate_requests(status);
+CREATE INDEX idx_estimate_requests_region ON public.estimate_requests(region);
 
 -- updated_at 자동 업데이트를 위한 함수
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -44,4 +34,13 @@ $$ language 'plpgsql';
 CREATE TRIGGER update_estimate_requests_updated_at 
     BEFORE UPDATE ON public.estimate_requests 
     FOR EACH ROW 
-    EXECUTE FUNCTION update_updated_at_column(); 
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- RLS 비활성화 (테스트용)
+ALTER TABLE public.estimate_requests DISABLE ROW LEVEL SECURITY;
+
+-- 모든 사용자가 파일 업로드 가능
+CREATE POLICY "Public upload" ON storage.objects
+  FOR INSERT
+  TO public
+  WITH CHECK (bucket_id = 'estimate-images'); 
